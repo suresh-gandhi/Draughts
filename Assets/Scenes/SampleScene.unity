@@ -379,6 +379,8 @@ MonoBehaviour:
   blackPiecePrefab: {fileID: 1980871371897142, guid: 2f7164145cb300d4eac6afaa36c775e4,
     type: 2}
   boardOffset: {x: -4, y: 0, z: -4}
+  isWhite: 0
+  isWhiteTurn: 0
 --- !u!65 &1217296686
 BoxCollider:
   m_ObjectHideFlags: 0

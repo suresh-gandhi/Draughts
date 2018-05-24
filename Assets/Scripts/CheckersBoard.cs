@@ -12,7 +12,7 @@ public class CheckersBoard : MonoBehaviour {
     private Vector3 pieceOffset = new Vector3(0.5f, 0, 0.5f);
 
     public bool isWhite;
-    private bool isWhiteTurn;
+    public bool isWhiteTurn;
     private bool hasKilled;
 
     private Piece selectedPiece;
@@ -22,18 +22,29 @@ public class CheckersBoard : MonoBehaviour {
     private Vector2 startDrag;
     private Vector2 endDrag;
 
+    private bool checkForVictory = false;               // MODIFICATION OR DEBUGGING BY ME. Earlier it was not present
+
     private void Start() {
-        GenerateBoard();
-        forcedPieces = new List<Piece>();
+        isWhite = true;
         isWhiteTurn = true;
+        GenerateBoard();
+        // GenerateBoardForDebugging();
+        forcedPieces = new List<Piece>();
+        forcedPieces = ScanForPossibleMoves();
+        // Debug.Log(forcedPieces.Count);
     }
 
     private void Update() {
-        Debug.Log(forcedPieces);
+        if (checkForVictory)
+        {                                         // MODIFICATION OR DEBUGGING BY ME. Earlier this block was not present
+            CheckVictory();
+            checkForVictory = false;
+        }
         UpdateMouseOver();                      // Refreshing the mouse over in every frame
         // Debug.Log(mouseOver);            
 
         // If its my turn
+        if((isWhite)?isWhiteTurn:!isWhiteTurn)
         {
             int x = (int)mouseOver.x;           // This is because in a vector they were transferred back to floats
             int z = (int)mouseOver.y;
@@ -42,10 +53,12 @@ public class CheckersBoard : MonoBehaviour {
                 UpdatePieceDrag(selectedPiece);     // Refreshing the update drag when we have some piece selected
             }
 
+            // If the mouse is clicked down then this is executed in that frame
             if (Input.GetMouseButtonDown(0)) {
                 SelectPiece(x, z);
             }
 
+            // If the mouse is pulled up then this is executed in that frame
             if (Input.GetMouseButtonUp(0)) {
                 TryMove((int)startDrag.x, (int)startDrag.y, x, z);
             }
@@ -88,7 +101,6 @@ public class CheckersBoard : MonoBehaviour {
         }
     }
 
-    // This function selects the piece at the block (x, z) if its in the valid range else returns and does nothing. It also updates the start drag.
     private void SelectPiece(int x, int z) {
         // Out of bounds
         if (x < 0 || x >= 8 || z < 0 || z >= 8) {
@@ -106,6 +118,7 @@ public class CheckersBoard : MonoBehaviour {
             else {
                 if (forcedPieces.Find(fp => fp == p) == null)
                 {
+                    // Debug.Log("Inside fp == p");
                     return;
                 }
                 selectedPiece = p;
@@ -122,7 +135,7 @@ public class CheckersBoard : MonoBehaviour {
 
     private void TryMove(int x1, int y1, int x2, int y2) {
 
-        forcedPieces = ScanForPossibleMoves();
+        // forcedPieces = ScanForPossibleMoves(); // MODIFICATION OR DEBUGGING BY ME. I removed it. It was there earlier
 
         // Multiplayer Support
         startDrag = new Vector2(x1, y1);
@@ -166,7 +179,7 @@ public class CheckersBoard : MonoBehaviour {
                     }
                 }
 
-                // Were we supposed to kill anything
+                // Were we supposed to kill anything and we have not killed
                 if(forcedPieces.Count != 0 && !hasKilled) {
                     MovePiece(selectedPiece, x1, y1);
                     startDrag = Vector2.zero;
@@ -190,25 +203,120 @@ public class CheckersBoard : MonoBehaviour {
         
     }
 
-    private void EndTurn() {
+    private void EndTurn(){
+
+        // Debug.Log("Inside EndTurn()");
+
+        int x = (int)endDrag.x;
+        int z = (int)endDrag.y;
+
+        // Promotions
+        if (selectedPiece != null) {
+            if (selectedPiece.isWhite && !selectedPiece.isKing && z == 7)
+            {
+                selectedPiece.isKing = true;                // We are setting the isKing here basically
+                selectedPiece.transform.Rotate(Vector3.right * 180);
+                // The following 8 lines of code is MODIFICATION OR DEBUGGING BY ME to fight the bug 3
+                selectedPiece = null;
+                startDrag = Vector2.zero;
+                isWhiteTurn = !isWhiteTurn;
+                isWhite = !isWhite;
+                forcedPieces = ScanForPossibleMoves();       
+                hasKilled = false;
+                CheckVictory();
+                return;
+            }
+            else if (!selectedPiece.isWhite && !selectedPiece.isKing && z == 0) {
+                selectedPiece.isKing = true;                // We are setting the isKing here basically
+                selectedPiece.transform.Rotate(Vector3.right * 180);
+                // The following 8 lines of code is MODIFICATION OR DEBUGGING BY ME to fight the bug 3
+                selectedPiece = null;
+                startDrag = Vector2.zero;
+                isWhiteTurn = !isWhiteTurn;
+                isWhite = !isWhite;
+                forcedPieces = ScanForPossibleMoves();
+                hasKilled = false;
+                CheckVictory();
+                return;
+            }
+        }
+
         selectedPiece = null;
         startDrag = Vector2.zero;
+        
+        // Debug.Log(ScanForPossibleMoves(selectedPiece, x, z).Count);
+
+        if (ScanForPossibleMoves(selectedPiece, x, z).Count != 0 && hasKilled) {
+            hasKilled = false;                       // MODIFICATION OR DEBUGGING BY ME. I added this line basically
+            return;
+        }
+
+        // Debug.Log("Changing the isWhiteTurn");
         isWhiteTurn = !isWhiteTurn;
+        isWhite = !isWhite;
+        forcedPieces = ScanForPossibleMoves();       // MODIFICATION OR DEBUGGING BY ME. I added this line basically. Earlier it was not there
         hasKilled = false;
-        CheckVictory();
+        // CheckVictory();                          // MODIFICATION OR DEBUGGING BY ME. I removed this as earlier it was not working which I feel so due to frame things.
+        checkForVictory = true;
     }
 
-    private bool CheckVictory() {
-        return false;
+    private void CheckVictory() {
+       //  Debug.Log("Inside CheckVictory()");
+        var ps = FindObjectsOfType<Piece>();
+        // Debug.Log(ps.Length);
+        bool hasWhite = false, hasBlack = false;
+        for (int i = 0; i < ps.Length; i++) {
+            if (ps[i].isWhite)
+            {
+                hasWhite = true;
+            }
+            else {
+                hasBlack = true;
+            }
+        }
+
+        if (!hasWhite) {
+            Victory(false);
+        }
+        if (!hasBlack) {
+            Victory(true);
+        }
+    }
+
+    private void Victory(bool isWhite) {
+        Debug.Log("Inside Victory()");
+        if (isWhite)
+        {
+            Debug.Log("White team has won");
+        }
+        else {
+            Debug.Log("Black team has won");
+        }
+    }
+
+    private List<Piece> ScanForPossibleMoves(Piece p, int x, int y) {
+        forcedPieces = new List<Piece>();
+
+        // Debug.Log(pieces[x, y].IsForceToMove(pieces, x, y));
+
+        if (pieces[x, y].IsForceToMove(pieces, x, y)) {
+            forcedPieces.Add(pieces[x, y]);
+        }
+
+        return forcedPieces;
     }
 
     private List<Piece> ScanForPossibleMoves() {
+        // Debug.Log("Inside ScanForPossibleMoves()");
         forcedPieces = new List<Piece>();
 
         // Check all the pieces
         for (int i = 0; i < 8; i++) {
             for (int j = 0; j < 8; j++) {
                 if (pieces[i, j] != null && pieces[i, j].isWhite == isWhiteTurn) {
+                    // Debug.Log("We went inside the first if in the for loop for (i, j): " + i + ", " + j);
+                    // Debug.Log(pieces[i, j].name);
+                    // Debug.Log(isWhiteTurn);
                     if (pieces[i, j].IsForceToMove(pieces, i, j)) {
                         forcedPieces.Add(pieces[i, j]);
                     }
@@ -217,6 +325,15 @@ public class CheckersBoard : MonoBehaviour {
         }
 
         return forcedPieces;
+    }
+
+    private void GenerateBoardForDebugging() {
+        GeneratePieceForDebugging(1, 5, true);
+        GeneratePieceForDebugging(2, 6, false);
+        GeneratePieceForDebugging(4, 6, false);
+        //GeneratePieceForDebugging(5, 1, true);
+        GeneratePieceForDebugging(6, 4, false);
+        GeneratePieceForDebugging(6, 6, false);
     }
 
     private void GenerateBoard() {
@@ -240,6 +357,14 @@ public class CheckersBoard : MonoBehaviour {
             }
         }
 
+    }
+
+    private void GeneratePieceForDebugging(int x, int z, bool isWhitePiece) {
+        GameObject go = Instantiate((isWhitePiece) ? whitePiecePrefab : blackPiecePrefab) as GameObject;
+        go.transform.SetParent(transform);
+        Piece p = go.GetComponent<Piece>();
+        pieces[x, z] = p;
+        MovePiece(p, x, z);
     }
 
     private void GeneratePiece(int x, int z) {
